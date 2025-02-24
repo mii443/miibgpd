@@ -1,7 +1,4 @@
-use std::{
-    net::{IpAddr, Ipv4Addr},
-    str::FromStr,
-};
+use std::{net::Ipv4Addr, str::FromStr};
 
 use anyhow::Context;
 
@@ -10,9 +7,9 @@ use crate::{bgp_type::AutonomousSystemNumber, error::ConfigParseError};
 #[derive(PartialEq, Eq, Debug, Clone, Hash, PartialOrd, Ord)]
 pub struct Config {
     pub local_as: AutonomousSystemNumber,
-    pub local_ip: IpAddr,
+    pub local_ip: Ipv4Addr,
     pub remote_as: AutonomousSystemNumber,
-    pub remote_ip: IpAddr,
+    pub remote_ip: Ipv4Addr,
     pub mode: Mode,
 }
 
@@ -67,9 +64,9 @@ impl FromStr for Config {
 
         Ok(Config {
             local_as,
-            local_ip: IpAddr::V4(local_ip),
+            local_ip,
             remote_as,
-            remote_ip: IpAddr::V4(remote_ip),
+            remote_ip,
             mode,
         })
     }

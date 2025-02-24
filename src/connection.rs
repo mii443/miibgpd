@@ -1,10 +1,15 @@
 use anyhow::{Context, Ok, Result};
-use tokio::net::{TcpListener, TcpStream};
+use bytes::BytesMut;
+use tokio::{
+    io::AsyncWriteExt,
+    net::{TcpListener, TcpStream},
+};
 use tracing::info;
 
 use crate::{
     config::{Config, Mode},
     error::CreateConnectionError,
+    packets::message::Message,
 };
 
 const BGP_PORT: u16 = 179;
@@ -12,6 +17,7 @@ const BGP_PORT: u16 = 179;
 #[derive(Debug)]
 pub struct Connection {
     connection: TcpStream,
+    buffer: BytesMut,
 }
 
 impl Connection {
@@ -21,7 +27,14 @@ impl Connection {
             Mode::Passive => Self::wait_connection_from_remote_peer(config).await,
         }?;
 
-        Ok(Self { connection })
+        let buffer = BytesMut::with_capacity(1500);
+
+        Ok(Self { connection, buffer })
+    }
+
+    pub async fn send(&mut self, message: Message) {
+        let bytes: BytesMut = message.into();
+        self.connection.write_all(&bytes[..]).await;
     }
 
     async fn connect_to_remote_peer(config: &Config) -> Result<TcpStream> {

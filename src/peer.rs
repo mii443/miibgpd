@@ -1,7 +1,8 @@
 use tracing::info;
 
 use crate::{
-    config::Config, connection::Connection, event::Event, event_queue::EventQueue, state::State,
+    config::Config, connection::Connection, event::Event, event_queue::EventQueue,
+    packets::message::Message, state::State,
 };
 
 #[derive(Debug)]
@@ -54,6 +55,14 @@ impl Peer {
             },
             State::Connect => match event {
                 Event::TcpConnectionConfirmed => {
+                    self.tcp_connection
+                        .as_mut()
+                        .expect("tcp-connection is None")
+                        .send(Message::new_open(
+                            self.config.local_as,
+                            self.config.local_ip,
+                        ))
+                        .await;
                     info!("state transitioned from Connect to OpenSent");
                     self.state = State::OpenSent;
                 }
