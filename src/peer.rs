@@ -37,6 +37,7 @@ impl Peer {
         match &self.state {
             State::Idle => match event {
                 Event::ManualStart => {
+                    info!("state transitioned from Idle to Connect");
                     self.state = State::Connect;
                 }
                 _ => {}
