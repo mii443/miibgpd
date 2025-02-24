@@ -42,22 +42,8 @@ impl Connection {
             "waiting connection from remote peer, local-ip={:?}, bgp-port={}",
             config.local_ip, BGP_PORT
         );
-        let listener = TcpListener::bind((config.local_ip, BGP_PORT))
-            .await
-            .unwrap()
-        /*.context(format!(
-            "cannot bind to local-ip={:?}, bgp-port={}",
-            config.local_ip, BGP_PORT
-        ))?*/;
+        let listener = TcpListener::bind((config.local_ip, BGP_PORT)).await?;
 
-        Ok(listener
-            .accept()
-            .await
-            .unwrap()
-            /*.context(format!(
-                "cannot accept connection from remote peer, local-ip={:?}, bgp-port={}",
-                config.local_ip, BGP_PORT
-            ))?*/
-            .0)
+        Ok(listener.accept().await?.0)
     }
 }
