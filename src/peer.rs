@@ -97,6 +97,12 @@ impl Peer {
                 }
                 _ => {}
             },
+            State::OpenConfirm => match event {
+                Event::KeepaliveMsg(keepalive) => {
+                    self.state = State::Established;
+                }
+                _ => {}
+            },
             _ => {}
         }
 
@@ -116,6 +122,40 @@ mod tests {
     use crate::config::Config;
     use crate::peer::Peer;
     use crate::state::State;
+
+    #[tokio::test]
+    async fn peer_can_transition_to_open_established_state() {
+        let config: Config = "64512 127.0.0.1 64513 127.0.0.2 active".parse().unwrap();
+        let mut peer = Peer::new(config);
+        peer.start();
+
+        tokio::spawn(async move {
+            let remote_config: Config = "64513 127.0.0.2 64512 127.0.0.1 passive".parse().unwrap();
+            let mut remote_peer = Peer::new(remote_config);
+            remote_peer.start();
+
+            let max_step = 50;
+            for _ in 0..max_step {
+                remote_peer.next().await;
+                if remote_peer.state == State::Established {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_secs_f32(0.1)).await;
+            }
+        });
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let max_step = 50;
+        for _ in 0..max_step {
+            peer.next().await;
+            if peer.state == State::Established {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs_f32(0.1)).await;
+        }
+
+        assert_eq!(peer.state, State::Established);
+    }
 
     #[tokio::test]
     async fn peer_can_transition_to_open_confirm_state() {
