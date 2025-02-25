@@ -1,5 +1,5 @@
 use std::{
-    net::IpAddr,
+    net::{IpAddr, Ipv4Addr},
     ops::{Deref, DerefMut},
     str::FromStr,
 };
@@ -10,7 +10,10 @@ use futures::TryStreamExt;
 use rtnetlink::{new_connection, IpVersion};
 use tracing::info;
 
-use crate::{config::Config, error::ConfigParseError};
+use crate::{
+    config::Config,
+    error::{ConfigParseError, ConstructIpv4NetworkError, ConvertBytesToBgpMessageError},
+};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct LocRib;
@@ -74,6 +77,70 @@ impl From<&Ipv4Network> for BytesMut {
 }
 
 impl Ipv4Network {
+    pub fn new(addr: Ipv4Addr, prefix: u8) -> Result<Self, ConstructIpv4NetworkError> {
+        let network = ipnetwork::Ipv4Network::new(addr, prefix).context(format!(
+            "cannot create Ipv4Network: {:?}, {:?}",
+            addr, prefix
+        ))?;
+
+        Ok(Self(network))
+    }
+
+    pub fn from_u8_slice(bytes: &[u8]) -> Result<Vec<Self>, ConvertBytesToBgpMessageError> {
+        let mut networks = vec![];
+        let mut i = 0;
+        while bytes.len() > i {
+            let prefix = bytes[i];
+            i += 1;
+            match prefix {
+                0 => {
+                    networks.push(Ipv4Network::new(Ipv4Addr::new(0, 0, 0, 0), prefix).context("")?);
+                }
+                1..=8 => {
+                    networks.push(
+                        Ipv4Network::new(Ipv4Addr::new(bytes[i], 0, 0, 0), prefix).context("")?,
+                    );
+                    i += 1;
+                }
+                9..=16 => {
+                    networks.push(
+                        Ipv4Network::new(Ipv4Addr::new(bytes[i], bytes[i + 1], 0, 0), prefix)
+                            .context("")?,
+                    );
+                    i += 2;
+                }
+                17..=24 => {
+                    networks.push(
+                        Ipv4Network::new(
+                            Ipv4Addr::new(bytes[i], bytes[i + 1], bytes[i + 2], 0),
+                            prefix,
+                        )
+                        .context("")?,
+                    );
+                    i += 3;
+                }
+                25..=32 => {
+                    networks.push(
+                        Ipv4Network::new(
+                            Ipv4Addr::new(bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]),
+                            prefix,
+                        )
+                        .context("")?,
+                    );
+                    i += 4;
+                }
+                _ => {
+                    return Err(ConvertBytesToBgpMessageError::from(anyhow::anyhow!(
+                        "Invalid prefix length: {:?}",
+                        prefix
+                    )));
+                }
+            }
+        }
+
+        Ok(networks)
+    }
+
     pub fn bytes_len(&self) -> usize {
         match self.prefix() {
             0 => 1,

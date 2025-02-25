@@ -27,3 +27,10 @@ pub struct ConvertbgpMessageToBytesError {
     #[from]
     source: anyhow::Error,
 }
+
+#[derive(Error, Debug)]
+#[error(transparent)]
+pub struct ConstructIpv4NetworkError {
+    #[from]
+    source: anyhow::Error,
+}

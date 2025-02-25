@@ -1,6 +1,8 @@
+use anyhow::Context;
 use bytes::{BufMut, BytesMut};
 
 use crate::bgp_type::AutonomousSystemNumber;
+use crate::error::ConvertBytesToBgpMessageError;
 
 use std::collections::BTreeSet;
 use std::net::Ipv4Addr;
@@ -61,6 +63,50 @@ impl From<&AsPath> for BytesMut {
     }
 }
 
+impl TryFrom<u8> for Origin {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Origin::Igp),
+            1 => Ok(Origin::Egp),
+            2 => Ok(Origin::Incomplete),
+            _ => Err(anyhow::anyhow!("cannot convert to Origin: {:?}", value)),
+        }
+    }
+}
+
+impl TryFrom<&[u8]> for AsPath {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match value[0] {
+            1 => {
+                let mut ases = BTreeSet::new();
+                let mut i = 2;
+                while i < value.len() {
+                    ases.insert(u16::from_be_bytes(value[i..i + 2].try_into()?).into());
+                    i += 2;
+                }
+                Ok(AsPath::AsSet(ases))
+            }
+            2 => {
+                let mut ases = Vec::new();
+                let mut i = 2;
+                while i < value.len() {
+                    ases.push(u16::from_be_bytes(value[i..i + 2].try_into()?).into());
+                    i += 2;
+                }
+                Ok(AsPath::AsSequence(ases))
+            }
+            _ => Err(anyhow::anyhow!(format!(
+                "cannot convert to AsPath: {:?}",
+                value
+            ))),
+        }
+    }
+}
+
 impl PathAttribute {
     pub fn bytes_len(&self) -> usize {
         let path_attribute_value_length = match self {
@@ -77,6 +123,51 @@ impl PathAttribute {
         } else {
             length + 1
         }
+    }
+
+    pub fn from_u8_slice(
+        bytes: &[u8],
+    ) -> Result<Vec<PathAttribute>, ConvertBytesToBgpMessageError> {
+        let mut path_attributes = vec![];
+        let mut i = 0;
+        while bytes.len() > i {
+            let attribute_flag = bytes[i];
+            let attribute_length_octets = ((attribute_flag & 0b0001_0000) >> 4) + 1;
+            let attribute_type_code = bytes[i + 1];
+            let attribute_length = if attribute_length_octets == 1 {
+                bytes[i + 2] as usize
+            } else {
+                u16::from_be_bytes(
+                    bytes[i + 2..i + 4]
+                        .try_into()
+                        .context("cannot convert to attribute_length")?,
+                ) as usize
+            };
+
+            let attribute_start_index = i + 1 + attribute_length_octets as usize + 1;
+            let attribute_end_index = attribute_start_index + attribute_length;
+            let path_attribute = match attribute_type_code {
+                1 => PathAttribute::Origin(Origin::try_from(bytes[attribute_start_index])?),
+                2 => PathAttribute::AsPath(AsPath::try_from(
+                    &bytes[attribute_start_index..attribute_end_index],
+                )?),
+                3 => {
+                    let addr = Ipv4Addr::new(
+                        bytes[attribute_start_index],
+                        bytes[attribute_start_index + 1],
+                        bytes[attribute_start_index + 2],
+                        bytes[attribute_start_index + 3],
+                    );
+
+                    PathAttribute::NextHop(addr)
+                }
+                _ => PathAttribute::DontKnow(bytes[i..attribute_end_index].to_owned()),
+            };
+            path_attributes.push(path_attribute);
+            i = attribute_end_index;
+        }
+
+        Ok(path_attributes)
     }
 }
 

@@ -5,6 +5,7 @@ use crate::bgp_type::AutonomousSystemNumber;
 use crate::error::ConvertBytesToBgpMessageError;
 use crate::path_attribute::{AsPath, Origin, PathAttribute};
 use crate::routing::Ipv4Network;
+use anyhow::Context;
 use bytes::{BufMut, BytesMut};
 
 use super::header::{Header, MessageType};
@@ -90,7 +91,42 @@ impl TryFrom<BytesMut> for UpdateMessage {
     type Error = ConvertBytesToBgpMessageError;
 
     fn try_from(bytes: BytesMut) -> Result<Self, Self::Error> {
-        todo!();
+        let header = Header::try_from(BytesMut::from(&bytes[0..19]))?;
+
+        let withdrawn_routes_length: u16 = u16::from_be_bytes(bytes[19..21].try_into().context(
+            format!("cannot convert to withdrawn_routes_length: {:?}", &bytes),
+        )?);
+        let withdrawn_routes_end_index = 21 + withdrawn_routes_length as usize;
+        let withdrawn_routes_bytes = &bytes[21..withdrawn_routes_end_index];
+        let withdrawn_routes = Ipv4Network::from_u8_slice(withdrawn_routes_bytes)?;
+
+        let path_attributes_start_index = withdrawn_routes_end_index + 2;
+        let total_path_attribute_length = u16::from_be_bytes(
+            bytes[withdrawn_routes_end_index..path_attributes_start_index]
+                .try_into()
+                .context(format!(
+                    "cannot convert to total_path_attribute_length: {:?}",
+                    &bytes
+                ))?,
+        );
+
+        let path_attributes_bytes = &bytes[path_attributes_start_index
+            ..path_attributes_start_index + total_path_attribute_length as usize];
+        let path_attributes = Arc::new(PathAttribute::from_u8_slice(path_attributes_bytes)?);
+        let network_layer_reachability_information_start_index =
+            path_attributes_start_index + total_path_attribute_length as usize;
+        let network_layer_reachability_information = Ipv4Network::from_u8_slice(
+            &bytes[network_layer_reachability_information_start_index..],
+        )?;
+
+        Ok(Self {
+            header,
+            withdrawn_routes,
+            withdrawn_routes_length,
+            path_attributes,
+            path_attributes_length: total_path_attribute_length,
+            network_layer_reachability_information,
+        })
     }
 }
 
@@ -114,7 +150,7 @@ mod tests {
 
         let update_message = UpdateMessage::new(
             update_message_path_attributes,
-            vec!["10.100.220.0.24".parse().unwrap()],
+            vec!["10.100.220.0/24".parse().unwrap()],
             vec![],
         );
 
