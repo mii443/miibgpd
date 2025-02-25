@@ -27,7 +27,7 @@ async fn main() {
         let handle = tokio::spawn(async move {
             loop {
                 peer.next().await;
-                sleep(Duration::from_secs_f32(0.1)).await;
+                sleep(Duration::from_millis(10)).await;
             }
         });
         handles.push(handle);
