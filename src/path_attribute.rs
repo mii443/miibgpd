@@ -1,3 +1,5 @@
+use bytes::{BufMut, BytesMut};
+
 use crate::bgp_type::AutonomousSystemNumber;
 
 use std::collections::BTreeSet;
@@ -24,6 +26,41 @@ pub enum AsPath {
     AsSet(BTreeSet<AutonomousSystemNumber>),
 }
 
+impl From<&AsPath> for BytesMut {
+    fn from(as_path: &AsPath) -> BytesMut {
+        match as_path {
+            AsPath::AsSet(s) => {
+                let mut bytes = BytesMut::new();
+
+                let path_segment_type = 1;
+                let number_of_as = s.len();
+                bytes.put_u8(path_segment_type);
+                bytes.put_u8(number_of_as as u8);
+                bytes.put(
+                    &s.iter()
+                        .flat_map(|a| u16::from(*a).to_be_bytes())
+                        .collect::<Vec<u8>>()[..],
+                );
+                bytes
+            }
+            AsPath::AsSequence(s) => {
+                let mut bytes = BytesMut::new();
+
+                let path_segment_type = 2;
+                let number_of_as = s.len();
+                bytes.put_u8(path_segment_type);
+                bytes.put_u8(number_of_as as u8);
+                bytes.put(
+                    &s.iter()
+                        .flat_map(|a| u16::from(*a).to_be_bytes())
+                        .collect::<Vec<u8>>()[..],
+                );
+                bytes
+            }
+        }
+    }
+}
+
 impl PathAttribute {
     pub fn bytes_len(&self) -> usize {
         let path_attribute_value_length = match self {
@@ -40,6 +77,64 @@ impl PathAttribute {
         } else {
             length + 1
         }
+    }
+}
+
+impl From<&PathAttribute> for BytesMut {
+    fn from(p: &PathAttribute) -> Self {
+        let mut bytes = BytesMut::new();
+
+        match p {
+            PathAttribute::Origin(o) => {
+                let attribute_flag = 0b0100_0000;
+                let attribute_type_code = 1;
+                let attribute_length = 1;
+                let attribute = match o {
+                    Origin::Igp => 0,
+                    Origin::Egp => 1,
+                    Origin::Incomplete => 2,
+                };
+
+                bytes.put_u8(attribute_flag);
+                bytes.put_u8(attribute_type_code);
+                bytes.put_u8(attribute_length);
+                bytes.put_u8(attribute);
+            }
+            PathAttribute::AsPath(a) => {
+                let mut attribute_flag = 0b0100_0000;
+                let attribute_type_code = 2;
+
+                let attribute_length = a.bytes_len() as u16;
+                let mut attribute_length_bytes = BytesMut::new();
+                if attribute_length < 256 {
+                    attribute_length_bytes.put_u8(attribute_length as u8);
+                } else {
+                    attribute_flag += 0b0001_0000;
+                    attribute_length_bytes.put_u16(attribute_length);
+                }
+
+                let attribute = BytesMut::from(a);
+
+                bytes.put_u8(attribute_flag);
+                bytes.put_u8(attribute_type_code);
+                bytes.put(attribute_length_bytes);
+                bytes.put(attribute);
+            }
+            PathAttribute::NextHop(n) => {
+                let mut attribute_flag = 0b0100_0000;
+                let attribute_type_code = 3;
+                let attribute_length = 4;
+                let attribute = n.octets();
+
+                bytes.put_u8(attribute_flag);
+                bytes.put_u8(attribute_type_code);
+                bytes.put_u8(attribute_length);
+                bytes.put(&attribute[..]);
+            }
+            PathAttribute::DontKnow(v) => bytes.put(&v[..]),
+        }
+
+        bytes
     }
 }
 

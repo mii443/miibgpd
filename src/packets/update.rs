@@ -5,7 +5,7 @@ use crate::bgp_type::AutonomousSystemNumber;
 use crate::error::ConvertBytesToBgpMessageError;
 use crate::path_attribute::{AsPath, Origin, PathAttribute};
 use crate::routing::Ipv4Network;
-use bytes::BytesMut;
+use bytes::{BufMut, BytesMut};
 
 use super::header::{Header, MessageType};
 
@@ -60,8 +60,29 @@ impl UpdateMessage {
 }
 
 impl From<UpdateMessage> for BytesMut {
-    fn from(update: UpdateMessage) -> Self {
-        todo!();
+    fn from(message: UpdateMessage) -> Self {
+        let mut bytes = BytesMut::new();
+
+        bytes.put::<BytesMut>(message.header.into());
+
+        bytes.put_u16(message.withdrawn_routes_length);
+        message
+            .withdrawn_routes
+            .iter()
+            .for_each(|r| bytes.put::<BytesMut>(r.into()));
+
+        bytes.put_u16(message.path_attributes_length);
+        message
+            .path_attributes
+            .iter()
+            .for_each(|r| bytes.put::<BytesMut>(r.into()));
+
+        message
+            .network_layer_reachability_information
+            .iter()
+            .for_each(|r| bytes.put::<BytesMut>(r.into()));
+
+        bytes
     }
 }
 

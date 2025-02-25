@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use bytes::{BufMut, BytesMut};
 use futures::TryStreamExt;
 use rtnetlink::{new_connection, IpVersion};
 use tracing::info;
@@ -46,6 +47,29 @@ impl FromStr for Ipv4Network {
             .context(format!("cannot parse Ipv4Network: {:?}", s))?;
 
         Ok(Self(network))
+    }
+}
+
+impl From<&Ipv4Network> for BytesMut {
+    fn from(network: &Ipv4Network) -> Self {
+        let prefix = network.prefix();
+
+        let n = network.network().octets();
+        let network_bytes = match prefix {
+            0 => vec![],
+            1..=8 => n[0..1].into(),
+            9..=16 => n[0..2].into(),
+            17..=24 => n[0..3].into(),
+            25..=32 => n[0..4].into(),
+            _ => panic!("Invalid prefix length: {:?}", prefix),
+        };
+
+        let mut bytes = BytesMut::new();
+
+        bytes.put_u8(prefix);
+        bytes.put(&network_bytes[..]);
+
+        bytes
     }
 }
 
