@@ -53,6 +53,9 @@ impl Peer {
             Message::Keepalive(keepalive) => {
                 self.event_queue.enqueue(Event::KeepaliveMsg(keepalive));
             }
+            Message::Update(update) => {
+                self.event_queue.enqueue(Event::UpdateMsg(update));
+            }
         }
     }
 

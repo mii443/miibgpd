@@ -8,12 +8,14 @@ use super::{
     header::{Header, MessageType},
     keepalive::KeepaliveMessage,
     open::OpenMessage,
+    update::UpdateMessage,
 };
 
 #[derive(Debug)]
 pub enum Message {
     Open(OpenMessage),
     Keepalive(KeepaliveMessage),
+    Update(UpdateMessage),
 }
 
 impl TryFrom<BytesMut> for Message {
@@ -40,6 +42,10 @@ impl TryFrom<BytesMut> for Message {
                 let keepalive_message = KeepaliveMessage::try_from(bytes)?;
                 Ok(Self::Keepalive(keepalive_message))
             }
+            MessageType::Update => {
+                let update_message = UpdateMessage::try_from(bytes)?;
+                Ok(Self::Update(update_message))
+            }
         }
     }
 }
@@ -49,6 +55,7 @@ impl From<Message> for BytesMut {
         match message {
             Message::Open(open) => open.into(),
             Message::Keepalive(keepalive) => keepalive.into(),
+            Message::Update(update) => update.into(),
         }
     }
 }
