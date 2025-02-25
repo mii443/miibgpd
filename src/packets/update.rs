@@ -7,7 +7,7 @@ use crate::path_attribute::{AsPath, Origin, PathAttribute};
 use crate::routing::Ipv4Network;
 use bytes::BytesMut;
 
-use super::header::Header;
+use super::header::{Header, MessageType};
 
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub struct UpdateMessage {
@@ -25,7 +25,37 @@ impl UpdateMessage {
         network_layer_reachability_information: Vec<Ipv4Network>,
         withdrawn_routes: Vec<Ipv4Network>,
     ) -> Self {
-        todo!();
+        let path_attributes_length =
+            path_attributes.iter().map(|p| p.bytes_len()).sum::<usize>() as u16;
+
+        let network_layer_reachability_information_length = network_layer_reachability_information
+            .iter()
+            .map(|r| r.bytes_len())
+            .sum::<usize>() as u16;
+
+        let withdrawn_routes_length = withdrawn_routes
+            .iter()
+            .map(|w| w.bytes_len())
+            .sum::<usize>() as u16;
+
+        let header_minimum_length = 19u16;
+        let header = Header::new(
+            header_minimum_length
+                + path_attributes_length
+                + network_layer_reachability_information_length
+                + withdrawn_routes_length
+                + 4,
+            MessageType::Update,
+        );
+
+        Self {
+            header,
+            withdrawn_routes,
+            withdrawn_routes_length,
+            path_attributes,
+            path_attributes_length,
+            network_layer_reachability_information,
+        }
     }
 }
 

@@ -49,6 +49,19 @@ impl FromStr for Ipv4Network {
     }
 }
 
+impl Ipv4Network {
+    pub fn bytes_len(&self) -> usize {
+        match self.prefix() {
+            0 => 1,
+            1..=8 => 2,
+            9..=16 => 3,
+            17..=24 => 4,
+            25..=32 => 5,
+            _ => panic!("Invalid prefix length: {:?}", self.prefix()),
+        }
+    }
+}
+
 impl LocRib {
     pub async fn new(config: &Config) -> Result<Self> {
         todo!();
