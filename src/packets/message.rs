@@ -9,6 +9,7 @@ use super::{
     open::OpenMessage,
 };
 
+#[derive(Debug)]
 pub enum Message {
     Open(OpenMessage),
 }
