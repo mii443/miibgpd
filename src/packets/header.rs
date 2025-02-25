@@ -44,6 +44,7 @@ impl From<Header> for BytesMut {
 #[derive(PartialEq, Eq, Debug, Clone, Hash)]
 pub enum MessageType {
     Open,
+    Keepalive,
 }
 
 impl TryFrom<u8> for MessageType {
@@ -52,6 +53,7 @@ impl TryFrom<u8> for MessageType {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(Self::Open),
+            4 => Ok(Self::Keepalive),
             _ => Err(Self::Error::from(anyhow::anyhow!(
                 "Invalid message type: {}",
                 value
@@ -64,6 +66,7 @@ impl From<MessageType> for u8 {
     fn from(value: MessageType) -> Self {
         match value {
             MessageType::Open => 1,
+            MessageType::Keepalive => 4,
         }
     }
 }

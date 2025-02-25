@@ -50,6 +50,9 @@ impl Peer {
             Message::Open(open) => {
                 self.event_queue.enqueue(Event::BgpOpen(open));
             }
+            Message::Keepalive(keepalive) => {
+                self.event_queue.enqueue(Event::KeepaliveMsg(keepalive));
+            }
         }
     }
 
@@ -85,7 +88,11 @@ impl Peer {
             },
             State::OpenSent => match event {
                 Event::BgpOpen(open) => {
-                    //TODO: send keepalive message
+                    self.tcp_connection
+                        .as_mut()
+                        .expect("tcp-connection is None")
+                        .send(Message::new_keepalive())
+                        .await;
                     self.state = State::OpenConfirm;
                 }
                 _ => {}

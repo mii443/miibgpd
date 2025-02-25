@@ -6,12 +6,14 @@ use crate::{bgp_type::AutonomousSystemNumber, error::ConvertBytesToBgpMessageErr
 
 use super::{
     header::{Header, MessageType},
+    keepalive::KeepaliveMessage,
     open::OpenMessage,
 };
 
 #[derive(Debug)]
 pub enum Message {
     Open(OpenMessage),
+    Keepalive(KeepaliveMessage),
 }
 
 impl TryFrom<BytesMut> for Message {
@@ -34,6 +36,10 @@ impl TryFrom<BytesMut> for Message {
                 let open_message = OpenMessage::try_from(bytes)?;
                 Ok(Self::Open(open_message))
             }
+            MessageType::Keepalive => {
+                let keepalive_message = KeepaliveMessage::try_from(bytes)?;
+                Ok(Self::Keepalive(keepalive_message))
+            }
         }
     }
 }
@@ -42,6 +48,7 @@ impl From<Message> for BytesMut {
     fn from(message: Message) -> Self {
         match message {
             Message::Open(open) => open.into(),
+            Message::Keepalive(keepalive) => keepalive.into(),
         }
     }
 }
@@ -50,5 +57,10 @@ impl Message {
     pub fn new_open(my_as_number: AutonomousSystemNumber, my_ip_addr: Ipv4Addr) -> Self {
         let open_message = OpenMessage::new(my_as_number, my_ip_addr);
         Self::Open(open_message)
+    }
+
+    pub fn new_keepalive() -> Self {
+        let keepalive_message = KeepaliveMessage::new();
+        Self::Keepalive(keepalive_message)
     }
 }
