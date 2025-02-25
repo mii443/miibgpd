@@ -39,6 +39,8 @@ impl Peer {
     }
 
     async fn handle_event(&mut self, event: Event) {
+        let current_state = self.state.clone();
+
         match &self.state {
             State::Idle => match event {
                 Event::ManualStart => {
@@ -48,7 +50,6 @@ impl Peer {
                     } else {
                         panic!("cannot establish TCP connection: {:?}", self.config);
                     }
-                    info!("state transitioned from Idle to Connect");
                     self.state = State::Connect;
                 }
                 _ => {}
@@ -63,12 +64,18 @@ impl Peer {
                             self.config.local_ip,
                         ))
                         .await;
-                    info!("state transitioned from Connect to OpenSent");
                     self.state = State::OpenSent;
                 }
                 _ => {}
             },
             _ => {}
+        }
+
+        if self.state != current_state {
+            info!(
+                "state transitioned, from={:?}, to={:?}",
+                current_state, self.state
+            );
         }
     }
 }
